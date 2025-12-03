@@ -250,7 +250,7 @@ describe('Repository Builds', () => {
     );
     cy.intercept(
       'GET',
-      '/api/v1/repository/testorg/testrepo?includeStats=false&includeTags=false',
+      '/api/v1/repository/testorg/testrepo?includeStats=true&includeTags=false',
       {fixture: 'testrepo.json'},
     ).as('getRepo');
     cy.intercept('GET', '/api/v1/organization/testorg', {
@@ -263,7 +263,7 @@ describe('Repository Builds', () => {
       repoFixture.state = 'MIRROR';
       cy.intercept(
         'GET',
-        '/api/v1/repository/testorg/testrepo?includeStats=false&includeTags=false',
+        '/api/v1/repository/testorg/testrepo?includeStats=true&includeTags=false',
         repoFixture,
       ).as('getRepo');
     });
@@ -285,7 +285,7 @@ describe('Repository Builds', () => {
       repoFixture.state = 'READONLY';
       cy.intercept(
         'GET',
-        '/api/v1/repository/testorg/testrepo?includeStats=false&includeTags=false',
+        '/api/v1/repository/testorg/testrepo?includeStats=true&includeTags=false',
         repoFixture,
       ).as('getRepo');
     });
@@ -981,7 +981,7 @@ describe('Repository Builds', () => {
     }).as('getBuildTriggers');
     cy.intercept(
       'GET',
-      '/api/v1/repository/testorg/privaterepo?includeStats=false&includeTags=false',
+      '/api/v1/repository/testorg/privaterepo?includeStats=true&includeTags=false',
       {statusCode: 200, body: {is_public: false}},
     ).as('getRepoDetails');
     cy.intercept(
@@ -1028,6 +1028,47 @@ describe('Repository Builds', () => {
       cy.contains('button', 'Start Build').click();
     });
     cy.contains('Build started with ID build001');
+  });
+
+  it('Sorts builds by date started correctly', () => {
+    cy.intercept('GET', '/api/v1/repository/testorg/testrepo/build/?limit=10', {
+      builds: [
+        {
+          id: 'build1',
+          phase: 'complete',
+          started: 'Mon, 04 Nov 2024 14:21:00 -0000',
+          tags: [],
+        },
+        {
+          id: 'build2',
+          phase: 'complete',
+          started: 'Tue, 17 Sep 2024 10:15:00 -0000',
+          tags: [],
+        },
+        {
+          id: 'build3',
+          phase: 'complete',
+          started: 'Tue, 17 Sep 2024 16:30:00 -0000',
+          tags: [],
+        },
+      ],
+    }).as('getBuilds');
+    cy.intercept('GET', '/api/v1/repository/testorg/testrepo/trigger/', {
+      triggers: [],
+    }).as('getBuildTriggers');
+
+    cy.visit('/repository/testorg/testrepo?tab=builds');
+
+    // Default sort should be descending (newest first)
+    cy.get('tbody tr').eq(0).should('contain', 'build1');
+    cy.get('tbody tr').eq(1).should('contain', 'build3');
+    cy.get('tbody tr').eq(2).should('contain', 'build2');
+
+    // Click to sort ascending (oldest first)
+    cy.get('th').contains('Date started').click();
+    cy.get('tbody tr').eq(0).should('contain', 'build2');
+    cy.get('tbody tr').eq(1).should('contain', 'build3');
+    cy.get('tbody tr').eq(2).should('contain', 'build1');
   });
 });
 
@@ -1300,7 +1341,7 @@ describe('Repository Builds - Create GitHub Build Triggers', () => {
     );
     cy.intercept(
       'GET',
-      '/api/v1/repository/testorg/testrepo?includeStats=false&includeTags=false',
+      '/api/v1/repository/testorg/testrepo?includeStats=true&includeTags=false',
       {fixture: 'testrepo.json'},
     ).as('getRepo');
     cy.intercept('GET', '/api/v1/organization/testorg', {
@@ -1774,7 +1815,7 @@ describe('Repository Builds - View build logs', () => {
       fixture.can_write = true;
       cy.intercept(
         'GET',
-        '/api/v1/repository/testorg/testrepo?includeStats=false&includeTags=false',
+        '/api/v1/repository/testorg/testrepo?includeStats=true&includeTags=false',
         fixture,
       ).as('getrepo');
     });
@@ -1786,6 +1827,11 @@ describe('Repository Builds - View build logs', () => {
         const expectedData = buildData[index];
         cy.intercept(
           'GET',
+          '/api/v1/repository/testorg/testrepo?includeStats=true&includeTags=false',
+          {fixture: 'testrepo.json'},
+        ).as('getRepo');
+        cy.intercept(
+          'GET',
           `/api/v1/repository/testorg/testrepo/build/${build.id}`,
           build,
         ).as(`getBuild${build.id}`);
@@ -1795,6 +1841,9 @@ describe('Repository Builds - View build logs', () => {
           {fixture: 'build-logs.json'},
         ).as('getBuildLogs');
         cy.visit(`/repository/testorg/testrepo/build/${build.id}`);
+        cy.wait('@getRepo');
+        cy.wait(`@getBuild${build.id}`);
+        cy.wait('@getBuildLogs');
         cy.get('#build-id').contains(build.id);
         cy.get('#started').contains(formatDate(build.started));
         cy.get('#status').contains(getBuildMessage(build.phase));

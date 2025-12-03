@@ -61,12 +61,41 @@ export default function UsageLogs(props: UsageLogsProps) {
     });
   }, [logStartDate, logEndDate]);
 
-  const rangeValidator = (date: Date) => {
+  // Helper to parse date string back to Date object for comparison
+  const parseFormattedDate = (dateStr: string): Date => {
+    const [month, day, year] = dateStr.split('/');
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+  };
+
+  const startDateValidator = (date: Date) => {
     if (date < minDate) {
-      return 'Date is before the allowable range';
+      return 'Logs are only available for the past month';
     } else if (date > maxDate) {
-      return 'Date is after the allowable range';
+      return 'Cannot select future dates';
     }
+
+    // Check if start date is after end date
+    const endDate = parseFormattedDate(logEndDate);
+    if (date > endDate) {
+      return 'From date cannot be after To date';
+    }
+
+    return '';
+  };
+
+  const endDateValidator = (date: Date) => {
+    if (date < minDate) {
+      return 'Logs are only available for the past month';
+    } else if (date > maxDate) {
+      return 'Cannot select future dates';
+    }
+
+    // Check if end date is before start date
+    const startDate = parseFormattedDate(logStartDate);
+    if (date < startDate) {
+      return 'To date cannot be before From date';
+    }
+
     return '';
   };
 
@@ -87,19 +116,19 @@ export default function UsageLogs(props: UsageLogsProps) {
             <SplitItem>
               <DatePicker
                 value={logStartDate}
-                onChange={(_event, str, date) => {
+                onChange={(_event, str) => {
                   setLogStartDate(formatDate(str));
                 }}
-                validators={[rangeValidator]}
+                validators={[startDateValidator]}
               />
             </SplitItem>
             <SplitItem>
               <DatePicker
                 value={logEndDate}
-                onChange={(_event, str, date) => {
+                onChange={(_event, str) => {
                   setLogEndDate(formatDate(str));
                 }}
-                validators={[rangeValidator]}
+                validators={[endDateValidator]}
               />
             </SplitItem>
             <SplitItem>
@@ -114,15 +143,14 @@ export default function UsageLogs(props: UsageLogsProps) {
           </Split>
         </FlexItem>
         <FlexItem>
-          {chartHidden ? null : (
-            <UsageLogsGraph
-              starttime={logStartDate}
-              endtime={logEndDate}
-              repo={props.repository}
-              org={props.organization}
-              type={props.type}
-            />
-          )}
+          <UsageLogsGraph
+            starttime={logStartDate}
+            endtime={logEndDate}
+            repo={props.repository}
+            org={props.organization}
+            type={props.type}
+            isHidden={chartHidden}
+          />
         </FlexItem>
         <FlexItem>
           <UsageLogsTable
@@ -232,6 +260,8 @@ export const logKinds = {
   start_build_trigger: 'Manual build trigger',
   cancel_build: 'Cancel build',
   login_success: 'Login success',
+  logout_success: 'Logout success',
+  change_repo_state: 'Change repository state',
   permanently_delete_tag: 'Permanently Delete Tag',
   autoprune_tag_delete: 'Autoprune worker tag deletion',
   create_namespace_autoprune_policy: 'Create Namespace Autoprune Policy',
@@ -243,6 +273,12 @@ export const logKinds = {
   oauth_token_assigned: 'OAuth token assigned',
   enable_team_sync: 'Enable Team Sync',
   disable_team_sync: 'Disable Team Sync',
+  add_repo_webhook: 'Add webhook',
+  delete_repo_webhook: 'Delete webhook',
+  delete_tag_failed: 'Delete Tag failed',
+  login_failure: 'Login failure',
+  pull_repo_failed: 'Pull repository failed',
+  push_repo_failed: 'Push to repository failed',
   export_logs_success: 'Export logs queued for delivery',
   export_logs_failure: 'Export logs failure',
 };

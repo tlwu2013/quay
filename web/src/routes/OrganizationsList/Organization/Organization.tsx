@@ -9,11 +9,12 @@ import {
   TabTitleText,
   Title,
 } from '@patternfly/react-core';
-import {useCallback, useRef, useState} from 'react';
+import {useCallback, useMemo, useRef, useState} from 'react';
 import {useParams, useSearchParams} from 'react-router-dom';
 import {QuayBreadcrumb} from 'src/components/breadcrumb/Breadcrumb';
 import {useOrganization} from 'src/hooks/UseOrganization';
 import {useQuayConfig} from 'src/hooks/UseQuayConfig';
+import {useCurrentUser} from 'src/hooks/UseCurrentUser';
 import RepositoriesList from 'src/routes/RepositoriesList/RepositoriesList';
 import RobotAccountsList from 'src/routes/RepositoriesList/RobotAccountsList';
 import UsageLogs from 'src/routes/UsageLogs/UsageLogs';
@@ -41,10 +42,37 @@ export default function Organization() {
 
   const {organization, isUserOrganization} = useOrganization(organizationName);
   const {shouldShowExternalLoginsTab} = useExternalLogins();
+  const {user, loading} = useCurrentUser();
+
+  // Check if viewing own user account vs viewing another user's account
+  // Wait for user data to load to prevent tabs from flashing
+  const isViewingOwnUserAccount = useMemo(() => {
+    if (loading || !user) return false;
+    return isUserOrganization && user.username === organizationName;
+  }, [loading, user, isUserOrganization, organizationName]);
 
   const [activeTabKey, setActiveTabKey] = useState<string>(() => {
     const tab = searchParams.get('tab') || 'Repositories';
-    return tab === 'external' ? 'Externallogins' : tab;
+    const normalizedTab = tab.toLowerCase();
+    return normalizedTab === 'external'
+      ? 'Externallogins'
+      : normalizedTab === 'externallogins'
+      ? 'Externallogins'
+      : normalizedTab === 'repositories'
+      ? 'Repositories'
+      : normalizedTab === 'teamsandmembership'
+      ? 'Teamsandmembership'
+      : normalizedTab === 'robotaccounts'
+      ? 'Robotaccounts'
+      : normalizedTab === 'defaultpermissions'
+      ? 'Defaultpermissions'
+      : normalizedTab === 'oauthapplications'
+      ? 'OAuthApplications'
+      : normalizedTab === 'logs'
+      ? 'Logs'
+      : normalizedTab === 'settings'
+      ? 'Settings'
+      : tab;
   });
 
   const onTabSelect = useCallback(
@@ -61,10 +89,12 @@ export default function Organization() {
       return false;
     }
 
+    // For user accounts: only show tabs if viewing own account
     if (isUserOrganization) {
-      return true;
+      return isViewingOwnUserAccount;
     }
 
+    // For organizations: check admin permissions
     if (
       !isUserOrganization &&
       organization &&
@@ -107,7 +137,12 @@ export default function Organization() {
   const repositoriesSubNav = [
     {
       name: 'Repositories',
-      component: <RepositoriesList organizationName={organizationName} />,
+      component: (
+        <RepositoriesList
+          organizationName={organizationName}
+          isUserOrganization={isUserOrganization}
+        />
+      ),
       visible: true,
     },
     {
@@ -132,7 +167,7 @@ export default function Organization() {
     {
       name: 'External logins',
       component: <ExternalLoginsList />,
-      visible: isUserOrganization && shouldShowExternalLoginsTab(),
+      visible: isViewingOwnUserAccount && shouldShowExternalLoginsTab(),
     },
     {
       name: 'Default permissions',
@@ -158,7 +193,9 @@ export default function Organization() {
           type="org"
         />
       ),
-      visible: organization?.is_admin || isUserOrganization,
+      visible: isUserOrganization
+        ? isViewingOwnUserAccount
+        : organization?.is_admin,
     },
     {
       name: 'Settings',

@@ -33,6 +33,8 @@ export interface RepositoryCreationResponse {
 export interface IQuotaReport {
   quota_bytes: number;
   configured_quota: number;
+  percent_consumed?: number; // may come from API
+  backfill_status?: 'waiting' | 'running' | null; // for org-level display
 }
 
 export enum RepositoryState {
@@ -142,6 +144,11 @@ export async function fetchRepositories() {
   return response.data?.repositories as IRepository[];
 }
 
+export interface RepositoryStats {
+  date: string;
+  count: number;
+}
+
 export interface RepositoryDetails {
   can_admin: boolean;
   can_write: boolean;
@@ -157,11 +164,12 @@ export interface RepositoryDetails {
   status_token: string | null;
   tag_expiration_s: number | null;
   trust_enabled: boolean;
+  stats?: RepositoryStats[];
 }
 
 export async function fetchRepositoryDetails(org: string, repo: string) {
   const response: AxiosResponse<RepositoryDetails> = await axios.get(
-    `/api/v1/repository/${org}/${repo}?includeStats=false&includeTags=false`,
+    `/api/v1/repository/${org}/${repo}?includeStats=true&includeTags=false`,
   );
   assertHttpCode(response.status, 200);
   return response.data;

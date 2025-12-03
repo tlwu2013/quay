@@ -32,7 +32,7 @@ export function useFetchRobotAccounts(
     isError,
     isSuccess,
   } = useQuery<IRobot[]>(
-    ['robots'],
+    ['Namespace', orgName, 'robots'],
     ({signal}) => fetchRobotsForNamespace(orgName, isUser, signal),
     {
       placeholderData: [],

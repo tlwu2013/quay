@@ -2,6 +2,7 @@ import {AxiosResponse, AxiosError} from 'axios';
 import axios from 'src/libs/axios';
 import {assertHttpCode} from './ErrorHandling';
 import {IAvatar, IOrganization} from './OrganizationResource';
+import {IQuotaReport} from 'src/libs/quotaUtils';
 
 export interface IUserResource {
   anonymous: boolean;
@@ -26,6 +27,8 @@ export interface IUserResource {
   tag_expiration_s: number;
   prompts: [];
   super_user: boolean;
+  global_readonly_super_user?: boolean;
+  enabled?: boolean; // User enabled/disabled status (for superuser user management)
   company: string;
   family_name: string;
   given_name: string;
@@ -33,6 +36,7 @@ export interface IUserResource {
   is_free_account: boolean;
   has_password_set: boolean;
   organizations: IOrganization[];
+  quota_report?: IQuotaReport; // Quota report for the user's namespace
 }
 
 export async function fetchUser() {
@@ -120,11 +124,16 @@ export interface CreateUserRequest {
   email: string;
 }
 
+export interface CreateUserResponse {
+  awaiting_verification?: boolean;
+  [key: string]: any; // Allow other fields from the API response
+}
+
 export async function createUser(
   username: string,
   password: string,
   email: string,
-) {
+): Promise<CreateUserResponse> {
   const response = await axios.post('/api/v1/user/', {
     username,
     password,
@@ -132,6 +141,53 @@ export async function createUser(
   });
   assertHttpCode(response.status, 200);
   return response.data;
+}
+
+export interface CreateSuperuserUserRequest {
+  username: string;
+  email: string;
+}
+
+export interface CreateSuperuserUserResponse {
+  username: string;
+  email: string;
+  password: string;
+  enabled: boolean;
+}
+
+export async function createSuperuserUser(
+  data: CreateSuperuserUserRequest,
+): Promise<CreateSuperuserUserResponse> {
+  const response: AxiosResponse<CreateSuperuserUserResponse> = await axios.post(
+    '/api/v1/superuser/users/',
+    data,
+  );
+  assertHttpCode(response.status, 200);
+  return response.data;
+}
+
+export interface UpdateSuperuserUserRequest {
+  email?: string;
+  password?: string;
+  enabled?: boolean;
+}
+
+export async function updateSuperuserUser(
+  username: string,
+  data: UpdateSuperuserUserRequest,
+): Promise<void> {
+  const response: AxiosResponse = await axios.put(
+    `/api/v1/superuser/users/${username}`,
+    data,
+  );
+  assertHttpCode(response.status, 200);
+}
+
+export async function deleteSuperuserUser(username: string): Promise<void> {
+  const response: AxiosResponse = await axios.delete(
+    `/api/v1/superuser/users/${username}`,
+  );
+  assertHttpCode(response.status, 204);
 }
 
 export interface UpdateUserRequest {
@@ -302,4 +358,18 @@ export async function revokeApplicationToken(tokenUuid: string): Promise<void> {
       err,
     );
   }
+}
+
+export interface SendRecoveryEmailResponse {
+  email: string;
+}
+
+export async function sendRecoveryEmail(
+  username: string,
+): Promise<SendRecoveryEmailResponse> {
+  const response: AxiosResponse<SendRecoveryEmailResponse> = await axios.post(
+    `/api/v1/superusers/users/${username}/sendrecovery`,
+  );
+  assertHttpCode(response.status, 200);
+  return response.data;
 }

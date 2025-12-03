@@ -6,7 +6,7 @@ from flask import request
 import features
 from auth import scopes
 from auth.auth_context import get_authenticated_user
-from auth.permissions import OrganizationMemberPermission, SuperUserPermission
+from auth.permissions import OrganizationMemberPermission
 from data import model
 from data.model import config
 from endpoints.api import (
@@ -14,6 +14,7 @@ from endpoints.api import (
     allow_if_any_superuser,
     allow_if_global_readonly_superuser,
     allow_if_superuser,
+    allow_if_superuser_with_full_access,
     nickname,
     request_error,
     require_scope,
@@ -100,7 +101,12 @@ class OrganizationQuotaList(ApiResource):
     @nickname("listOrganizationQuota")
     def get(self, orgname):
         orgperm = OrganizationMemberPermission(orgname)
-        if not orgperm.can() and not allow_if_any_superuser():
+        # Global readonly superusers can always view, regular superusers need FULL_ACCESS
+        if (
+            not orgperm.can()
+            and not allow_if_global_readonly_superuser()
+            and not (features.SUPERUSERS_FULL_ACCESS and allow_if_superuser())
+        ):
             raise Unauthorized()
 
         try:
@@ -125,7 +131,7 @@ class OrganizationQuotaList(ApiResource):
         """
         Create a new organization quota.
         """
-        if not SuperUserPermission().can():
+        if not allow_if_superuser_with_full_access():
             raise Unauthorized()
 
         quota_data = request.get_json()
@@ -201,7 +207,12 @@ class OrganizationQuota(ApiResource):
     @nickname("getOrganizationQuota")
     def get(self, orgname, quota_id):
         orgperm = OrganizationMemberPermission(orgname)
-        if not orgperm.can() and not allow_if_any_superuser():
+        # Global readonly superusers can always view, regular superusers need FULL_ACCESS
+        if (
+            not orgperm.can()
+            and not allow_if_global_readonly_superuser()
+            and not (features.SUPERUSERS_FULL_ACCESS and allow_if_superuser())
+        ):
             raise Unauthorized()
 
         quota = get_quota(orgname, quota_id)
@@ -212,7 +223,7 @@ class OrganizationQuota(ApiResource):
     @require_scope(scopes.SUPERUSER)
     @validate_json_request("UpdateOrgQuota")
     def put(self, orgname, quota_id):
-        if not SuperUserPermission().can():
+        if not allow_if_superuser_with_full_access():
             raise Unauthorized()
 
         quota_data = request.get_json()
@@ -241,7 +252,7 @@ class OrganizationQuota(ApiResource):
     @nickname("deleteOrganizationQuota")
     @require_scope(scopes.SUPERUSER)
     def delete(self, orgname, quota_id):
-        if not SuperUserPermission().can():
+        if not allow_if_superuser_with_full_access():
             raise Unauthorized()
 
         quota = get_quota(orgname, quota_id)
@@ -276,21 +287,25 @@ class OrganizationQuotaLimitList(ApiResource):
 
     @nickname("listOrganizationQuotaLimit")
     def get(self, orgname, quota_id):
-        orgperm = OrganizationMemberPermission(orgname)
-        if not orgperm.can() and not allow_if_any_superuser():
-            raise Unauthorized()
+        permission = OrganizationMemberPermission(orgname)
+        if (
+            permission.can()
+            or allow_if_global_readonly_superuser()
+            or allow_if_superuser_with_full_access()
+        ):
+            quota = get_quota(orgname, quota_id)
+            return [
+                limit_view(limit)
+                for limit in model.namespacequota.get_namespace_quota_limit_list(quota)
+            ]
 
-        quota = get_quota(orgname, quota_id)
-        return [
-            limit_view(limit)
-            for limit in model.namespacequota.get_namespace_quota_limit_list(quota)
-        ]
+        raise Unauthorized()
 
     @nickname("createOrganizationQuotaLimit")
     @validate_json_request("NewOrgQuotaLimit")
     @require_scope(scopes.SUPERUSER)
     def post(self, orgname, quota_id):
-        if not SuperUserPermission().can():
+        if not allow_if_superuser_with_full_access():
             raise Unauthorized()
 
         quota_limit_data = request.get_json()
@@ -346,22 +361,26 @@ class OrganizationQuotaLimit(ApiResource):
 
     @nickname("getOrganizationQuotaLimit")
     def get(self, orgname, quota_id, limit_id):
-        orgperm = OrganizationMemberPermission(orgname)
-        if not orgperm.can() and not allow_if_any_superuser():
-            raise Unauthorized()
+        permission = OrganizationMemberPermission(orgname)
+        if (
+            permission.can()
+            or allow_if_global_readonly_superuser()
+            or allow_if_superuser_with_full_access()
+        ):
+            quota = get_quota(orgname, quota_id)
+            quota_limit = model.namespacequota.get_namespace_quota_limit(quota, limit_id)
+            if quota_limit is None:
+                raise NotFound()
 
-        quota = get_quota(orgname, quota_id)
-        quota_limit = model.namespacequota.get_namespace_quota_limit(quota, limit_id)
-        if quota_limit is None:
-            raise NotFound()
+            return limit_view(quota_limit)
 
-        return limit_view(quota_limit)
+        raise Unauthorized()
 
     @nickname("changeOrganizationQuotaLimit")
     @validate_json_request("UpdateOrgQuotaLimit")
     @require_scope(scopes.SUPERUSER)
     def put(self, orgname, quota_id, limit_id):
-        if not SuperUserPermission().can():
+        if not allow_if_superuser_with_full_access():
             raise Unauthorized()
 
         quota_limit_data = request.get_json()
@@ -383,7 +402,7 @@ class OrganizationQuotaLimit(ApiResource):
     @nickname("deleteOrganizationQuotaLimit")
     @require_scope(scopes.SUPERUSER)
     def delete(self, orgname, quota_id, limit_id):
-        if not SuperUserPermission().can():
+        if not allow_if_superuser_with_full_access():
             raise Unauthorized()
 
         quota = get_quota(orgname, quota_id)

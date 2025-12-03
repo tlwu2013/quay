@@ -56,6 +56,7 @@ CLIENT_WHITELIST = [
     "FEATURE_AUTO_PRUNE",
     "DEFAULT_NAMESPACE_AUTOPRUNE_POLICY",
     "DEFAULT_UI",
+    "DISABLE_ANGULAR_UI",
 ]
 
 
@@ -862,7 +863,7 @@ class DefaultConfig(ImmutableConfig):
     FEATURE_EXPORT_COMPLIANCE = False
 
     # Feature Flag: Enables user to try the beta UI Environment
-    FEATURE_UI_V2 = False
+    FEATURE_UI_V2 = True
     FEATURE_UI_MODELCARD = False
     UI_MODELCARD_ARTIFACT_TYPE = "application/x-mlmodel"
     UI_MODELCARD_ANNOTATION: Optional[Dict[str, str]] = {}
@@ -871,10 +872,12 @@ class DefaultConfig(ImmutableConfig):
     }
 
     # User feedback form for UI-V2
-    UI_V2_FEEDBACK_FORM = "https://7qdvkuo9rkj.typeform.com/to/XH5YE79P"
+    UI_V2_FEEDBACK_FORM = None
 
     # Default to new UI
     DEFAULT_UI = "react"
+    # If true, disables legacy Angular UI pages and redirects
+    DISABLE_ANGULAR_UI = False
 
     # Export Compliance Endpoint
     EXPORT_COMPLIANCE_ENDPOINT = ""

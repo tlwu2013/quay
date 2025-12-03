@@ -1,8 +1,11 @@
 /// <reference types="cypress" />
 
 describe('OIDC Team Sync', () => {
-  beforeEach(() => {
+  before(() => {
     cy.exec('npm run quay:seed');
+  });
+
+  beforeEach(() => {
     cy.request('GET', `${Cypress.env('REACT_QUAY_APP_API_URL')}/csrf_token`)
       .then((response) => response.body.csrf_token)
       .then((token) => {
@@ -113,8 +116,8 @@ describe('OIDC Team Sync', () => {
     cy.contains('Team Synchronization Config').should('exist');
     cy.contains('Bound to group').should('exist');
     cy.contains('testteam_teamsync_group').should('exist');
-    cy.contains('Last Updated').should('exist');
-    cy.contains('Never').should('exist');
+    // Last Updated should not be visible for OIDC team sync
+    cy.contains('Last Updated').should('not.exist');
     cy.contains('tr', 'teamsyncorg+robotacct');
   });
 
@@ -255,5 +258,22 @@ describe('OIDC Team Sync', () => {
     cy.visit('/organization/teamsyncorg/teams/testteam?tab=Teamsandmembership');
     cy.wait('@getSycedTeamMembers');
     cy.get(`[data-testid="Invited"]`).find('button').should('be.disabled');
+  });
+
+  it('Enable Team Sync button should not be visible when FEATURE_TEAM_SYNCING is false', () => {
+    // Override config to disable TEAM_SYNCING feature
+    cy.intercept('GET', '/config', (req) => {
+      req.reply((res) => {
+        res.body.features.TEAM_SYNCING = false;
+        return res;
+      });
+    }).as('getConfigTeamSyncDisabled');
+
+    cy.visit('/organization/teamsyncorg/teams/testteam?tab=Teamsandmembership');
+    cy.wait('@getTeammembers');
+    cy.wait('@getConfigTeamSyncDisabled');
+
+    // Verify that Enable Team Sync button is not visible
+    cy.get('button:contains("Enable Team Sync")').should('not.exist');
   });
 });

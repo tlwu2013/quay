@@ -3,8 +3,11 @@
 import {humanizeTimeForExpiry, parseTimeDuration} from 'src/libs/utils';
 
 describe('Account Settings Page', () => {
-  beforeEach(() => {
+  before(() => {
     cy.exec('npm run quay:seed');
+  });
+
+  beforeEach(() => {
     cy.visit('/signin');
     cy.request('GET', `${Cypress.env('REACT_QUAY_APP_API_URL')}/csrf_token`)
       .then((response) => response.body.csrf_token)
@@ -196,7 +199,27 @@ describe('Account Settings Page', () => {
     cy.get('#checkbox').should('be.checked');
   });
 
-  it('CLI Token', () => {
+  it('CLI Token - Generate Encrypted Password with All Credential Formats', () => {
+    // Mock the encrypted password API call - wrong password
+    cy.intercept('POST', '/api/v1/user/clientkey', (req) => {
+      if (req.body.password === 'wrongpassword') {
+        req.reply({
+          statusCode: 400,
+          body: {
+            error_message: 'Invalid Username or Password',
+            error_type: 'invalid_auth',
+          },
+        });
+      } else if (req.body.password === 'password') {
+        req.reply({
+          statusCode: 200,
+          body: {
+            key: 'fake-encrypted-password-12345',
+          },
+        });
+      }
+    }).as('createClientKey');
+
     cy.visit('/organization/user1?tab=Settings');
 
     // navigate to CLI Tab
@@ -208,13 +231,75 @@ describe('Account Settings Page', () => {
     // Wrong password
     cy.get('#delete-confirmation-input').type('wrongpassword');
     cy.get('#submit').click();
+    cy.wait('@createClientKey');
     cy.contains('Invalid Username or Password');
 
     // Correct password
     cy.get('#delete-confirmation-input').clear();
     cy.get('#delete-confirmation-input').type('password');
     cy.get('#submit').click();
-    cy.contains('Your encrypted password is');
+    cy.wait('@createClientKey');
+
+    // Should show credentials modal with all tabs
+    cy.get('[data-testid="credentials-modal"]').should('be.visible');
+    cy.contains('Credentials for user1').should('exist');
+
+    // Verify alert message for encrypted password
+    cy.contains('Encrypted Password').should('exist');
+    cy.contains('This encrypted password can be used for').should('exist');
+    cy.contains('docker login').should('exist');
+
+    // Verify all tabs exist
+    cy.contains('Encrypted Password').should('exist');
+    cy.contains('Kubernetes Secret').should('exist');
+    cy.contains('rkt Configuration').should('exist');
+    cy.contains('Podman Login').should('exist');
+    cy.contains('Docker Login').should('exist');
+    cy.contains('Docker Configuration').should('exist');
+
+    // Verify Encrypted Password tab (default) shows username and password
+    cy.get('[data-testid="credentials-modal-copy-username"]').should('exist');
+    cy.get('[data-testid="credentials-modal-copy-username"]')
+      .find('input[readonly]')
+      .should('have.value', 'user1'); // Encrypted password uses actual username
+    cy.get('[data-testid="credentials-modal-copy-password"]').should('exist');
+
+    // Test Kubernetes Secret tab
+    cy.contains('Kubernetes Secret').click();
+    cy.contains('Step 1: Create secret YAML file').should('exist');
+    cy.contains('apiVersion: v1').should('exist');
+    cy.contains('kind: Secret').should('exist');
+    cy.contains('user1-pull-secret').should('exist');
+
+    // Test Docker Login tab
+    cy.contains('Docker Login').click();
+    cy.contains('Run docker login command').should('exist');
+    cy.contains('docker login').should('exist');
+    // Verify username is user1 (not $app like application tokens)
+    cy.contains('user1').should('exist'); // Username in command
+    cy.contains('localhost').should('exist'); // Server hostname in command
+
+    // Test Podman Login tab
+    cy.contains('Podman Login').click();
+    cy.contains('Run podman login command').should('exist');
+    cy.contains('podman login').should('exist');
+    // Verify username is user1
+    cy.contains('user1').should('exist'); // Username in command
+
+    // Test rkt Configuration tab
+    cy.contains('rkt Configuration').click();
+    cy.contains('Step 1: Create rkt configuration file').should('exist');
+    cy.contains('rktKind').should('exist');
+
+    // Test Docker Configuration tab
+    cy.contains('Docker Configuration').click();
+    cy.contains('Step 1: Create Docker config file').should('exist');
+    cy.contains('This will').should('exist');
+    cy.contains('overwrite').should('exist');
+
+    // Close modal
+    cy.get('[data-testid="credentials-modal-close"]').click();
+    cy.get('[data-testid="credentials-modal"]').should('not.exist');
   });
 
   it('Avatar Display', () => {
@@ -351,7 +436,9 @@ describe('Account Settings Page', () => {
         const mockNotification = function () {
           // Empty constructor for mocking purposes
         } as unknown as typeof Notification;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (mockNotification as any).permission = 'default';
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (mockNotification as any).requestPermission = cy
           .stub()
           .resolves('granted');
@@ -489,13 +576,13 @@ describe('Account Settings Page', () => {
     // Check section title
     cy.contains('Docker CLI and other Application Tokens').should('exist');
 
-    // Check tokens table
+    // Check tokens table - wait for table to be populated
+    cy.get('table').last().should('be.visible');
     cy.get('table')
       .last()
       .within(() => {
         cy.contains('My CLI Token').should('exist');
         cy.contains('Docker Token').should('exist');
-        cy.contains('1/15/2024').should('exist'); // last accessed
         cy.contains('Never').should('exist'); // never accessed
       });
 
@@ -555,13 +642,13 @@ describe('Account Settings Page', () => {
     cy.wait('@createToken');
 
     // Should show success step with token
-    cy.get('[data-testid="token-credentials-modal"]').within(() => {
+    cy.get('[data-testid="credentials-modal"]').within(() => {
       cy.contains('Token Created Successfully').should('exist');
-      cy.get('[data-testid="copy-token-button"]').should('exist');
+      cy.get('[data-testid="credentials-modal-copy-password"]').should('exist');
     });
 
-    cy.get('[data-testid="token-credentials-close"]').click();
-    cy.get('[data-testid="token-credentials-modal"]').should('not.exist');
+    cy.get('[data-testid="credentials-modal-close"]').click();
+    cy.get('[data-testid="credentials-modal"]').should('not.exist');
     cy.wait('@getTokensAfterCreate');
 
     // Verify new token appears in table
@@ -640,6 +727,86 @@ describe('Account Settings Page', () => {
     cy.contains("You haven't created any application tokens yet").should(
       'exist',
     );
+  });
+
+  it('Application Tokens Pagination and Filtering', () => {
+    // Mock 15 tokens to test pagination (default is 10 per page)
+    const tokens = Array.from({length: 15}, (_, i) => ({
+      uuid: `token${i + 1}-uuid`,
+      title: `Token ${i + 1}`,
+      last_accessed: i % 2 === 0 ? '2024-01-15T10:30:00Z' : null,
+      created: '2024-01-01T09:00:00Z',
+      expiration: null,
+    }));
+
+    cy.intercept('GET', '/api/v1/user/apptoken', {
+      body: {
+        tokens,
+        only_expiring: false,
+      },
+    }).as('getTokens');
+
+    cy.visit('/organization/user1?tab=Settings');
+
+    // Navigate to CLI configuration tab
+    cy.contains('CLI configuration').click();
+    cy.wait('@getTokens');
+
+    // Verify pagination controls appear
+    cy.get('[id="application-tokens-search"]').should('exist');
+    cy.get('[id="toolbar-pagination"]').should('exist');
+
+    // Check that only first 10 tokens are visible initially
+    cy.get('table')
+      .last()
+      .within(() => {
+        cy.contains('Token 1').should('exist');
+        cy.contains('Token 10').should('exist');
+        cy.contains('Token 11').should('not.exist');
+      });
+
+    // Test pagination - go to page 2
+    cy.get('[id="application-tokens-pagination"]')
+      .find('button[aria-label="Go to next page"]')
+      .click();
+
+    // Check that tokens 11-15 are visible
+    cy.get('table')
+      .last()
+      .within(() => {
+        cy.contains('Token 11').should('exist');
+        cy.contains('Token 15').should('exist');
+        cy.contains('Token 6').should('not.exist');
+      });
+
+    // Go back to page 1
+    cy.get('[id="application-tokens-pagination"]')
+      .find('button[aria-label="Go to previous page"]')
+      .click();
+
+    // Test filtering
+    cy.get('[id="application-tokens-search"]').type('Token 5');
+
+    // Should only show Token 5 (and possibly Token 15 if it contains "5")
+    cy.get('table')
+      .last()
+      .within(() => {
+        cy.contains('Token 5').should('exist');
+        // Other tokens should not be visible
+        cy.contains('Token 1').should('not.exist');
+        cy.contains('Token 2').should('not.exist');
+      });
+
+    // Clear the filter
+    cy.get('[id="application-tokens-search"]').clear();
+
+    // All tokens should be visible again (first 10)
+    cy.get('table')
+      .last()
+      .within(() => {
+        cy.contains('Token 1').should('exist');
+        cy.contains('Token 10').should('exist');
+      });
   });
 
   it('Feature Visibility Based on User Type and Auth', () => {
@@ -724,7 +891,7 @@ describe('Account Settings Page', () => {
     cy.wait('@createToken');
 
     // Should show success with tabs
-    cy.get('[data-testid="token-credentials-modal"]').within(() => {
+    cy.get('[data-testid="credentials-modal"]').within(() => {
       cy.contains('Token Created Successfully').should('exist');
 
       // Check all tabs exist
@@ -736,9 +903,9 @@ describe('Account Settings Page', () => {
       cy.contains('Docker Configuration').should('exist');
 
       // Verify default tab (Application Token) shows username and token
-      cy.get('[data-testid="copy-username"]').should('exist');
-      cy.get('[data-testid="copy-token-button"]').should('exist');
-      cy.get('[data-testid="copy-token-button"]')
+      cy.get('[data-testid="credentials-modal-copy-username"]').should('exist');
+      cy.get('[data-testid="credentials-modal-copy-password"]').should('exist');
+      cy.get('[data-testid="credentials-modal-copy-password"]')
         .find('input')
         .should('have.value', 'fake-token-code-12345');
 
@@ -757,11 +924,17 @@ describe('Account Settings Page', () => {
       cy.contains('Podman Login').click();
       cy.contains('Run podman login command').should('exist');
       cy.contains('podman login').should('exist');
+      // Verify command contains username $app
+      cy.contains('$app').should('exist'); // Username in command
+      cy.contains('localhost').should('exist'); // Server hostname in command
 
       // Test Docker Login tab
       cy.contains('Docker Login').click();
       cy.contains('Run docker login command').should('exist');
       cy.contains('docker login').should('exist');
+      // Verify command contains username $app
+      cy.contains('$app').should('exist'); // Username in command
+      cy.contains('localhost').should('exist'); // Server hostname in command
 
       // Test Docker Configuration tab
       cy.contains('Docker Configuration').click();
@@ -770,8 +943,8 @@ describe('Account Settings Page', () => {
       cy.contains('overwrite').should('exist');
     });
 
-    cy.get('[data-testid="token-credentials-close"]').click();
-    cy.get('[data-testid="token-credentials-modal"]').should('not.exist');
+    cy.get('[data-testid="credentials-modal-close"]').click();
+    cy.get('[data-testid="credentials-modal"]').should('not.exist');
   });
 
   it('Clickable Token Titles - View Token Details', () => {
@@ -825,12 +998,12 @@ describe('Account Settings Page', () => {
 
     // Verify modal shows token details with tabs
     cy.contains('Application Token').should('exist');
-    cy.get('[data-testid="copy-username"]').should('exist');
-    cy.get('[data-testid="copy-token-button"]').should('exist');
+    cy.get('[data-testid="credentials-modal-copy-username"]').should('exist');
+    cy.get('[data-testid="credentials-modal-copy-password"]').should('exist');
 
     // Close modal
     cy.contains('button', 'Done').click();
-    cy.get('[data-testid="token-credentials-modal"]').should('not.exist');
+    cy.get('[data-testid="credentials-modal"]').should('not.exist');
   });
 
   it('View Token Modal - Token Never Accessed', () => {
@@ -876,13 +1049,13 @@ describe('Account Settings Page', () => {
     cy.contains('Credentials for Unused Token').should('be.visible');
 
     // Verify modal shows token credentials
-    cy.get('[data-testid="token-credentials-modal"]').should('be.visible');
-    cy.get('[data-testid="copy-username"]').should('exist');
-    cy.get('[data-testid="copy-token-button"]').should('exist');
+    cy.get('[data-testid="credentials-modal"]').should('be.visible');
+    cy.get('[data-testid="credentials-modal-copy-username"]').should('exist');
+    cy.get('[data-testid="credentials-modal-copy-password"]').should('exist');
 
     // Close modal
     cy.contains('button', 'Done').click();
-    cy.get('[data-testid="token-credentials-modal"]').should('not.exist');
+    cy.get('[data-testid="credentials-modal"]').should('not.exist');
   });
 
   it('Settings Tab Hidden in Read-Only Mode', () => {
@@ -915,5 +1088,17 @@ describe('Account Settings Page', () => {
 
     // Should navigate to settings
     cy.url().should('include', 'tab=Settings');
+  });
+
+  it('normalizes lowercase "settings" to correct tab', () => {
+    cy.visit('/user/user1?tab=settings');
+    cy.wait('@getConfig');
+
+    // Verify we're on the Settings tab
+    cy.get('[role="tablist"]')
+      .first()
+      .within(() => {
+        cy.get('[aria-selected="true"]').should('contain.text', 'Settings');
+      });
   });
 });

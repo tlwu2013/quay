@@ -18,7 +18,7 @@ import {FormTextInput} from 'src/components/forms/FormTextInput';
 import {FormCheckbox} from 'src/components/forms/FormCheckbox';
 import EntitySearch from 'src/components/EntitySearch';
 import {Entity} from 'src/resources/UserResource';
-import {AlertVariant} from 'src/atoms/AlertState';
+import {AlertVariant} from 'src/contexts/UIContext';
 import {
   MirroringConfigResponse,
   getMirrorConfig,
@@ -371,7 +371,7 @@ export const MirroringConfiguration: React.FC<MirroringConfigurationProps> = ({
               <EntitySearch
                 id="robot-user-select"
                 org={namespace}
-                includeTeams={true}
+                includeTeams={false}
                 onSelect={(robot: Entity) => {
                   setSelectedRobot(robot);
                   field.onChange(robot.name);
@@ -389,7 +389,7 @@ export const MirroringConfiguration: React.FC<MirroringConfigurationProps> = ({
                   })
                 }
                 defaultOptions={robotOptions}
-                placeholderText="Select a team or user..."
+                placeholderText="Select a robot user..."
                 data-testid="robot-user-select"
               />
               {errors.robotUsername && (

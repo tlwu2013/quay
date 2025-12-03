@@ -25,7 +25,7 @@
     "preferred_namespace": false,
     "tag_expiration_s": 1209600,
     "prompts": [],
-    "super_user": false,
+    "super_user": true,
     "company": "",
     "family_name": null,
     "given_name": null,

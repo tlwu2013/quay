@@ -92,7 +92,7 @@ describe('Signin page', () => {
     setupFailedSignin(
       {
         invalidCredentials: true,
-        message: 'Invalid credentials',
+        message: 'Invalid login credentials',
       },
       403,
     );
@@ -102,7 +102,7 @@ describe('Signin page', () => {
     cy.get('#pf-login-password-id').type('wrongpassword');
     cy.get('button[type=submit]').click();
 
-    // Should show error message
+    // Should show error message from backend
     cy.wait('@signinFail');
     cy.contains('Invalid login credentials');
 
@@ -126,6 +126,59 @@ describe('Signin page', () => {
     // Should show CSRF error message
     cy.wait('@signinFail');
     cy.contains('CSRF token expired - please refresh');
+
+    // Should not redirect
+    cy.url().should('include', '/signin');
+  });
+
+  it('Handles unverified email correctly', () => {
+    setupFailedSignin(
+      {
+        needsEmailVerification: true,
+        invalidCredentials: false,
+        message: null,
+      },
+      403,
+    );
+
+    // Fill and submit form with user who hasn't verified email
+    cy.get('#pf-login-username-id').type('unverifieduser');
+    cy.get('#pf-login-password-id').type('password');
+    cy.get('button[type=submit]').click();
+
+    // Should show email verification error message
+    cy.wait('@signinFail');
+    cy.contains('You must verify your email address before you can sign in');
+
+    // Should NOT show CSRF or invalid credentials error
+    cy.contains('CSRF token expired').should('not.exist');
+    cy.contains('Invalid login credentials').should('not.exist');
+
+    // Should not redirect
+    cy.url().should('include', '/signin');
+  });
+
+  it('Handles INVITE_ONLY_USER_CREATION error message correctly', () => {
+    setupFailedSignin(
+      {
+        invalidCredentials: true,
+        message:
+          'User creation is disabled. Please contact your administrator to gain access.',
+      },
+      403,
+    );
+
+    // Fill and submit form with LDAP credentials for non-existent user
+    cy.get('#pf-login-username-id').type('larry');
+    cy.get('#pf-login-password-id').type('password');
+    cy.get('button[type=submit]').click();
+
+    // Should show the backend's specific error message, not generic "Invalid login credentials"
+    cy.wait('@signinFail');
+    cy.contains(
+      'User creation is disabled. Please contact your administrator to gain access.',
+    );
+    cy.contains('Invalid login credentials').should('not.exist');
 
     // Should not redirect
     cy.url().should('include', '/signin');
@@ -180,6 +233,78 @@ describe('Signin page', () => {
 
     // Should not redirect
     cy.url().should('include', '/signin');
+  });
+
+  it('Redirects to username confirmation page when user has prompts', () => {
+    // Mock successful login
+    setupSuccessfulSignin();
+
+    // Mock user API to return user with confirm_username prompt
+    cy.intercept('GET', '/api/v1/user/', {
+      statusCode: 200,
+      body: {
+        anonymous: false,
+        username: 'test_ldap_user',
+        email: 'test@example.com',
+        verified: true,
+        prompts: ['confirm_username'],
+        organizations: [],
+        logins: [
+          {
+            service: 'ldap',
+            service_identifier: 'test_ldap_user',
+            metadata: {
+              service_username: 'test_ldap_user',
+            },
+          },
+        ],
+      },
+    }).as('getUserWithPrompt');
+
+    // Fill and submit login form
+    cy.get('#pf-login-username-id').type('test_ldap_user');
+    cy.get('#pf-login-password-id').type('password');
+    cy.get('button[type=submit]').click();
+
+    // Wait for signin and user fetch
+    cy.wait('@signinSuccess');
+    cy.wait('@getCsrfToken');
+    cy.wait('@getUserWithPrompt');
+
+    // Should redirect to updateuser page for username confirmation
+    cy.url().should('include', '/updateuser');
+  });
+
+  it('Redirects to organization page when user has no prompts', () => {
+    // Mock successful login
+    setupSuccessfulSignin();
+
+    // Mock user API to return user without prompts
+    cy.intercept('GET', '/api/v1/user/', {
+      statusCode: 200,
+      body: {
+        anonymous: false,
+        username: 'user1',
+        email: 'user1@example.com',
+        verified: true,
+        prompts: [],
+        organizations: [],
+        logins: [],
+      },
+    }).as('getUserNoPrompt');
+
+    // Fill and submit login form
+    cy.get('#pf-login-username-id').type('user1');
+    cy.get('#pf-login-password-id').type('password');
+    cy.get('button[type=submit]').click();
+
+    // Wait for signin and user fetch
+    cy.wait('@signinSuccess');
+    cy.wait('@getCsrfToken');
+    cy.wait('@getUserNoPrompt');
+
+    // Should redirect to organization page
+    cy.url().should('include', '/organization');
   });
 });
 
@@ -392,5 +517,197 @@ describe('Create Account functionality', () => {
     cy.wait('@getConfigNoUserCreation');
     cy.contains("Don't have an account?").should('not.exist');
     cy.contains('Create account').should('not.exist');
+  });
+});
+
+describe('Global Messages on Login Page', () => {
+  beforeEach(() => {
+    // Mock config with basic settings
+    cy.intercept('GET', '/config', {
+      body: {
+        features: {
+          DIRECT_LOGIN: true,
+          USER_CREATION: true,
+        },
+        config: {
+          AUTHENTICATION_TYPE: 'Database',
+        },
+        external_login: [],
+      },
+    }).as('getConfig');
+  });
+
+  it('displays info message on login page', () => {
+    cy.intercept('GET', '/api/v1/messages', {
+      body: {
+        messages: [
+          {
+            uuid: 'msg-1',
+            content: 'Welcome to Red Hat Quay!',
+            media_type: 'text/plain',
+            severity: 'info',
+          },
+        ],
+      },
+    }).as('getMessages');
+
+    cy.visit('/signin');
+    cy.wait('@getMessages');
+
+    cy.contains('Welcome to Red Hat Quay!').should('be.visible');
+  });
+
+  it('displays warning message with markdown content', () => {
+    cy.intercept('GET', '/api/v1/messages', {
+      body: {
+        messages: [
+          {
+            uuid: 'msg-1',
+            content:
+              '**System Maintenance**: Scheduled maintenance window on Sunday 2AM-4AM EST.',
+            media_type: 'text/markdown',
+            severity: 'warning',
+          },
+        ],
+      },
+    }).as('getMessages');
+
+    cy.visit('/signin');
+    cy.wait('@getMessages');
+
+    // Check that the markdown is rendered (bold text should be in a <strong> tag)
+    cy.contains('System Maintenance').should('be.visible');
+    cy.get('strong').contains('System Maintenance').should('exist');
+  });
+
+  it('displays error message', () => {
+    cy.intercept('GET', '/api/v1/messages', {
+      body: {
+        messages: [
+          {
+            uuid: 'msg-1',
+            content:
+              'Critical security update available. Please update your clients immediately.',
+            media_type: 'text/plain',
+            severity: 'error',
+          },
+        ],
+      },
+    }).as('getMessages');
+
+    cy.visit('/signin');
+    cy.wait('@getMessages');
+
+    cy.contains(
+      'Critical security update available. Please update your clients immediately.',
+    ).should('be.visible');
+  });
+
+  it('displays multiple messages with different severities', () => {
+    cy.intercept('GET', '/api/v1/messages', {
+      body: {
+        messages: [
+          {
+            uuid: 'msg-1',
+            content:
+              '**System Maintenance**: Scheduled maintenance window on Sunday 2AM-4AM EST.',
+            media_type: 'text/markdown',
+            severity: 'warning',
+          },
+          {
+            uuid: 'msg-2',
+            content:
+              'Welcome to Red Hat Quay! Please review our updated terms of service.',
+            media_type: 'text/plain',
+            severity: 'info',
+          },
+          {
+            uuid: 'msg-3',
+            content:
+              'Critical security update available. Please update your clients immediately.',
+            media_type: 'text/plain',
+            severity: 'error',
+          },
+        ],
+      },
+    }).as('getMessages');
+
+    cy.visit('/signin');
+    cy.wait('@getMessages');
+
+    // Verify all three messages are displayed
+    cy.contains('System Maintenance').should('be.visible');
+    cy.contains('Welcome to Red Hat Quay!').should('be.visible');
+    cy.contains('Critical security update available').should('be.visible');
+  });
+
+  it('does not display anything when no messages exist', () => {
+    cy.intercept('GET', '/api/v1/messages', {
+      body: {
+        messages: [],
+      },
+    }).as('getMessages');
+
+    cy.visit('/signin');
+    cy.wait('@getMessages');
+
+    // Login form should still be visible
+    cy.get('#pf-login-username-id').should('be.visible');
+    cy.get('#pf-login-password-id').should('be.visible');
+  });
+
+  it('displays messages before user authentication', () => {
+    // This test verifies that global messages are fetched and displayed
+    // even when the user is not authenticated (important for login page)
+    cy.intercept('GET', '/api/v1/messages', {
+      body: {
+        messages: [
+          {
+            uuid: 'msg-1',
+            content: 'This message appears before login',
+            media_type: 'text/plain',
+            severity: 'info',
+          },
+        ],
+      },
+    }).as('getMessages');
+
+    // Don't login, just visit signin page
+    cy.visit('/signin');
+    cy.wait('@getMessages');
+
+    // Message should be visible
+    cy.contains('This message appears before login').should('be.visible');
+
+    // Login form should also be visible
+    cy.get('#pf-login-username-id').should('be.visible');
+  });
+
+  it('displays messages with links in markdown', () => {
+    cy.intercept('GET', '/api/v1/messages', {
+      body: {
+        messages: [
+          {
+            uuid: 'msg-1',
+            content:
+              'Please review our [updated terms of service](https://example.com/terms).',
+            media_type: 'text/markdown',
+            severity: 'info',
+          },
+        ],
+      },
+    }).as('getMessages');
+
+    cy.visit('/signin');
+    cy.wait('@getMessages');
+
+    // Check that the markdown link is rendered
+    cy.contains('Please review our').should('be.visible');
+    cy.get('a[href="https://example.com/terms"]').should('exist');
+    cy.get('a[href="https://example.com/terms"]').should(
+      'have.attr',
+      'target',
+      '_blank',
+    );
   });
 });

@@ -69,8 +69,9 @@ export default function RepositoriesList(props: RepositoriesListProps) {
   const quayConfig = useQuayConfig();
   const {user} = useCurrentUser();
 
-  // Fetch quota information for the organization
-  const {organizationQuota} = useFetchOrganizationQuota(currentOrg);
+  // Fetch quota information - use 'self' viewMode for user namespaces, 'organization' for orgs
+  const viewMode = props.isUserOrganization ? 'self' : 'organization';
+  const {organizationQuota} = useFetchOrganizationQuota(currentOrg, viewMode);
   const {repos, loading, error, search, setSearch, searchFilter} =
     useRepositories(currentOrg);
 
@@ -316,7 +317,11 @@ export default function RepositoriesList(props: RepositoriesListProps) {
     <>
       <RepoListHeader shouldRender={currentOrg === null} />
       <PageSection variant={PageSectionVariants.light}>
-        <ErrorModal title="Org deletion failed" error={err} setError={setErr} />
+        <ErrorModal
+          title="Repository deletion failed"
+          error={err}
+          setError={setErr}
+        />
         {quayConfig?.features?.QUOTA_MANAGEMENT &&
           quayConfig?.features?.EDIT_QUOTA &&
           currentOrg && (
@@ -491,4 +496,5 @@ export interface RepoListTableItem {
 
 interface RepositoriesListProps {
   organizationName: string;
+  isUserOrganization?: boolean;
 }

@@ -28,6 +28,7 @@ from auth.auth_context import get_authenticated_user
 from auth.permissions import (
     AdministerOrganizationPermission,
     CreateRepositoryPermission,
+    GlobalReadOnlySuperUserPermission,
     SuperUserPermission,
     UserAdminPermission,
     UserReadPermission,
@@ -134,6 +135,11 @@ def user_view(user, previous_username=None):
             "public": o.username in app.config.get("PUBLIC_NAMESPACES", []),
         }
 
+        if app.config.get("FEATURE_NAMESPACE_MIRROR"):
+            from data.model import namespace_mirror
+            mirror = namespace_mirror.get_namespace_mirror_config(o)
+            org_response["is_mirroring_enabled"] = bool(mirror and mirror.is_enabled)
+
         if user_admin:
             org_response.update(
                 {
@@ -220,6 +226,17 @@ def user_view(user, previous_username=None):
                 "super_user": user
                 and user == get_authenticated_user()
                 and SuperUserPermission().can()
+            }
+        )
+
+    # Add global_readonly_super_user field for read-only superusers
+    # This is separate from super_user to distinguish the two types
+    if GlobalReadOnlySuperUserPermission().can():
+        user_response.update(
+            {
+                "global_readonly_super_user": user
+                and user == get_authenticated_user()
+                and GlobalReadOnlySuperUserPermission().can()
             }
         )
 

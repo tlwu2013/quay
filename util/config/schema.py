@@ -631,6 +631,11 @@ CONFIG_SCHEMA = {
                     "description": "Main logo image URL",
                     "x-example": "/static/img/quay-horizontal-color.svg",
                 },
+                "logo_dark": {
+                    "type": "string",
+                    "description": "Dark theme variant of main logo (for dark backgrounds)",
+                    "x-example": "/static/img/quay-horizontal-white.svg",
+                },
                 "footer_img": {
                     "type": "string",
                     "description": "Logo for UI footer",
@@ -1435,6 +1440,11 @@ CONFIG_SCHEMA = {
             "type": "string",
             "description": "User feedback form for UI-V2",
             "x-example": "http://url-for-user-feedback-form.com",
+        },
+        "DISABLE_ANGULAR_UI": {
+            "type": "boolean",
+            "description": "Disable legacy Angular UI pages and redirects. Defaults to False",
+            "x-example": False,
         },
         "FEATURE_UI_V2": {
             "type": "boolean",

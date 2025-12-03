@@ -12,7 +12,6 @@ import {
   GridItem,
   PageSection,
   PageSectionVariants,
-  Skeleton,
   Text,
   TextArea,
   TextContent,
@@ -25,11 +24,11 @@ import {useQuayConfig} from 'src/hooks/UseQuayConfig';
 import {useQuayState} from 'src/hooks/UseQuayState';
 import {RepositoryDetails} from 'src/resources/RepositoryResource';
 import axios from 'src/libs/axios';
-import {useAlerts} from 'src/hooks/UseAlerts';
-import {AlertVariant} from 'src/atoms/AlertState';
+import {AlertVariant, useUI} from 'src/contexts/UIContext';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import React from 'react';
+import ActivityHeatmap from 'src/components/ActivityHeatmap/ActivityHeatmap';
 import './Information.css';
 
 interface InformationProps {
@@ -91,7 +90,7 @@ export default function Information(props: InformationProps) {
   const {organization, repository, repoDetails} = props;
   const config = useQuayConfig();
   const {inReadOnlyMode} = useQuayState();
-  const {addAlert} = useAlerts();
+  const {addAlert} = useUI();
   const queryClient = useQueryClient();
 
   const [description, setDescription] = useState(
@@ -155,17 +154,20 @@ export default function Information(props: InformationProps) {
   return (
     <PageSection variant={PageSectionVariants.light}>
       <Grid hasGutter>
-        {/* Repository Activity Placeholder */}
+        {/* Repository Activity Heatmap */}
         <GridItem span={12} md={5}>
           <Card>
             <CardTitle>Repository Activity</CardTitle>
             <CardBody>
-              <Skeleton height="200px" />
-              <TextContent style={{marginTop: '1rem', textAlign: 'center'}}>
-                <Text component={TextVariants.small}>
-                  Activity heatmap coming soon
-                </Text>
-              </TextContent>
+              {repoDetails?.stats && repoDetails.stats.length > 0 ? (
+                <ActivityHeatmap data={repoDetails.stats} itemName="action" />
+              ) : (
+                <TextContent style={{textAlign: 'center', padding: '2rem'}}>
+                  <Text component={TextVariants.small}>
+                    No activity data available
+                  </Text>
+                </TextContent>
+              )}
             </CardBody>
           </Card>
         </GridItem>
@@ -213,12 +215,15 @@ export default function Information(props: InformationProps) {
                       <Markdown
                         remarkPlugins={[remarkGfm]}
                         components={{
-                          code({inline, children}) {
+                          code({children}) {
                             const childText =
                               typeof children === 'string'
                                 ? children
                                 : String(children);
-                            return inline ? (
+                            // Detect inline code by checking for newlines
+                            // react-markdown v10.x doesn't reliably pass the inline prop
+                            const isInline = !childText.includes('\n');
+                            return isInline ? (
                               <code className="inline-code">{children}</code>
                             ) : (
                               <MarkdownCodeBlock code={childText} />

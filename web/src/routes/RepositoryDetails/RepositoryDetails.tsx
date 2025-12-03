@@ -15,13 +15,12 @@ import {
 } from '@patternfly/react-core';
 import {useEffect, useRef, useState} from 'react';
 import {useLocation, useNavigate, useSearchParams} from 'react-router-dom';
-import {AlertVariant} from 'src/atoms/AlertState';
+import {AlertVariant, useUI} from 'src/contexts/UIContext';
 import {QuayBreadcrumb} from 'src/components/breadcrumb/Breadcrumb';
 import Conditional from 'src/components/empty/Conditional';
 import ErrorBoundary from 'src/components/errors/ErrorBoundary';
 import RequestError from 'src/components/errors/RequestError';
 import CreateRobotAccountModal from 'src/components/modals/CreateRobotAccountModal';
-import {useAlerts} from 'src/hooks/UseAlerts';
 import {useQuayConfig} from 'src/hooks/UseQuayConfig';
 import {useRepository} from 'src/hooks/UseRepository';
 import {useFetchTeams} from 'src/hooks/UseTeams';
@@ -73,7 +72,7 @@ export default function RepositoryDetails() {
   );
   const [isCreateRobotModalOpen, setIsCreateRobotModalOpen] = useState(false);
   const [selectedEntity, setSelectedEntity] = useState<Entity>(null);
-  const {addAlert} = useAlerts();
+  const {addAlert} = useUI();
   const [err, setErr] = useState<string>();
 
   const drawerRef = useRef<HTMLDivElement>();
@@ -238,8 +237,7 @@ export default function RepositoryDetails() {
                   <Tab
                     eventKey={TabIndex.Information}
                     title={<TabTitleText>Information</TabTitleText>}
-                    onPointerEnterCapture={undefined}
-                    onPointerLeaveCapture={undefined}
+                    {...({} as any)}
                   >
                     <Information
                       organization={organization}
@@ -250,8 +248,7 @@ export default function RepositoryDetails() {
                   <Tab
                     eventKey={TabIndex.Tags}
                     title={<TabTitleText>Tags</TabTitleText>}
-                    onPointerEnterCapture={undefined}
-                    onPointerLeaveCapture={undefined}
+                    {...({} as any)}
                   >
                     <TagsList
                       organization={organization}
@@ -262,8 +259,7 @@ export default function RepositoryDetails() {
                   <Tab
                     eventKey={TabIndex.TagHistory}
                     title={<TabTitleText>Tag history</TabTitleText>}
-                    onPointerEnterCapture={undefined}
-                    onPointerLeaveCapture={undefined}
+                    {...({} as any)}
                   >
                     <TagHistory
                       org={organization}
@@ -274,8 +270,7 @@ export default function RepositoryDetails() {
                   <Tab
                     eventKey={TabIndex.Logs}
                     title={<TabTitleText>Logs</TabTitleText>}
-                    onPointerEnterCapture={undefined}
-                    onPointerLeaveCapture={undefined}
+                    {...({} as any)}
                   >
                     <UsageLogs
                       organization={organization}
@@ -290,8 +285,7 @@ export default function RepositoryDetails() {
                     isHidden={
                       !config?.features?.REPO_MIRROR || !repoDetails?.can_admin
                     }
-                    onPointerEnterCapture={undefined}
-                    onPointerLeaveCapture={undefined}
+                    {...({} as any)}
                   >
                     {repoDetails?.state !== 'MIRROR' ? (
                       <div>
@@ -320,8 +314,7 @@ export default function RepositoryDetails() {
                       repoDetails?.state !== 'NORMAL' ||
                       (!repoDetails?.can_write && !repoDetails?.can_admin)
                     }
-                    onPointerEnterCapture={undefined}
-                    onPointerLeaveCapture={undefined}
+                    {...({} as any)}
                   >
                     <Builds
                       org={organization}
@@ -334,8 +327,7 @@ export default function RepositoryDetails() {
                     eventKey={TabIndex.Settings}
                     title={<TabTitleText>Settings</TabTitleText>}
                     isHidden={!repoDetails?.can_admin}
-                    onPointerEnterCapture={undefined}
-                    onPointerLeaveCapture={undefined}
+                    {...({} as any)}
                   >
                     <Settings
                       org={organization}

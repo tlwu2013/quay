@@ -2089,6 +2089,44 @@ class RepoMirrorConfig(BaseModel):
     skopeo_timeout = BigIntegerField()
 
 
+class NamespaceMirrorConfig(BaseModel):
+    """
+    Represents the configuration for mirroring a namespace (Organization).
+    """
+
+    organization = ForeignKeyField(User, index=True, unique=True, backref="namespace_mirror")
+    creation_date = DateTimeField(default=datetime.utcnow)
+    is_enabled = BooleanField(default=True)
+
+    # Source Configuration
+    external_registry = CharField()
+    external_namespace = CharField()
+
+    # Credentials for the external registry (source)
+    external_registry_username = EncryptedCharField(max_length=4096, null=True)
+    external_registry_password = EncryptedCharField(max_length=9000, null=True)
+
+    # Configuration
+    sync_interval = IntegerField(default=86400)
+    sync_start_date = DateTimeField(default=datetime.utcnow)
+    sync_status = CharField(
+        default="never_run"
+    )  # 'never_run', 'queued', 'syncing', 'success', 'failure'
+    sync_message = TextField(null=True)  # Error message if failed
+    last_sync_start = DateTimeField(null=True)
+
+    # Filtering
+    repo_filter_type = CharField(default="regex")  # 'regex' or 'list' (csv)
+    repo_filter_value = CharField(null=True)
+
+    # Robot account used for creating repositories and mirroring tasks
+    internal_robot = QuayUserField(
+        allows_robots=True,
+        backref="namespacemirrorrobot",
+        null=True,
+    )
+
+
 @unique
 class IndexStatus(IntEnum):
     """
