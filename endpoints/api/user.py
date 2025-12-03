@@ -135,6 +135,11 @@ def user_view(user, previous_username=None):
             "public": o.username in app.config.get("PUBLIC_NAMESPACES", []),
         }
 
+        if app.config.get("FEATURE_NAMESPACE_MIRROR"):
+            from data.model import namespace_mirror
+            mirror = namespace_mirror.get_namespace_mirror_config(o)
+            org_response["is_mirroring_enabled"] = bool(mirror and mirror.is_enabled)
+
         if user_admin:
             org_response.update(
                 {

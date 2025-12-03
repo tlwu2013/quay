@@ -132,22 +132,32 @@ export default function OrgTableData(props: OrgTableDataProps) {
               <Link to={props.name}>{props.name}</Link>
             </FlexItem>
           </Flex>
-          {/* Show status labels for users (right-aligned, superuser only) */}
-          {isSuperUser && props.isUser && (
+          {/* Show status labels */}
+          {((isSuperUser && props.isUser) ||
+            (!props.isUser && organization?.is_mirroring_enabled)) && (
             <Flex spaceItems={{default: 'spaceItemsXs'}}>
-              {currentUser?.username === props.name && (
-                <FlexItem>
-                  <Label color="green">You</Label>
-                </FlexItem>
+              {isSuperUser && props.isUser && (
+                <>
+                  {currentUser?.username === props.name && (
+                    <FlexItem>
+                      <Label color="green">You</Label>
+                    </FlexItem>
+                  )}
+                  {props.userSuperuser && (
+                    <FlexItem>
+                      <Label color="blue">Superuser</Label>
+                    </FlexItem>
+                  )}
+                  {props.userEnabled === false && (
+                    <FlexItem>
+                      <Label>Disabled</Label>
+                    </FlexItem>
+                  )}
+                </>
               )}
-              {props.userSuperuser && (
+              {!props.isUser && organization?.is_mirroring_enabled && (
                 <FlexItem>
-                  <Label color="blue">Superuser</Label>
-                </FlexItem>
-              )}
-              {props.userEnabled === false && (
-                <FlexItem>
-                  <Label>Disabled</Label>
+                  <Label color="cyan">Mirroring</Label>
                 </FlexItem>
               )}
             </Flex>

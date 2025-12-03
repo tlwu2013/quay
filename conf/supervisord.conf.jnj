@@ -164,6 +164,18 @@ autostart = {{ config['namespacegcworker']['autostart'] }}
 stdout_events_enabled = true
 stderr_events_enabled = true
 
+[program:namespacemirrorworker]
+environment=
+  PYTHONPATH=%(ENV_QUAYDIR)s
+command={% if hotreload -%}
+  gunicorn --timeout=600 -b 'unix:/tmp/namespacemirrorworker.sock' -c %(ENV_QUAYCONF)s/gunicorn_worker.py 'workers.namespacemirrorworker:create_gunicorn_worker()'
+{% else -%}
+  python -m workers.namespacemirrorworker
+{% endif -%}
+autostart = {{ config.get('namespacemirrorworker', {}).get('autostart', 'true') }}
+stdout_events_enabled = true
+stderr_events_enabled = true
+
 [program:notificationworker]
 environment=
   PYTHONPATH=%(ENV_QUAYDIR)s

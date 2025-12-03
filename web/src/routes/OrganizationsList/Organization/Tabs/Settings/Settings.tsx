@@ -8,6 +8,7 @@ import {CliConfiguration} from './CLIConfiguration';
 import {GeneralSettings} from './GeneralSettings';
 import {ProxyCacheConfig} from './ProxyCacheConfig';
 import {QuotaManagement} from './QuotaManagement';
+import {OrganizationMirrorSettings} from './OrganizationMirrorSettings';
 
 export default function Settings(props: SettingsProps) {
   const organizationName = location.pathname.split('/')[2];
@@ -78,6 +79,14 @@ export default function Settings(props: SettingsProps) {
       visible:
         quayConfig?.features?.QUOTA_MANAGEMENT &&
         quayConfig?.features?.EDIT_QUOTA,
+    },
+    {
+      name: 'Organization Mirroring',
+      id: 'orgmirroring',
+      content: () => (
+        <OrganizationMirrorSettings organizationName={props.organizationName} />
+      ),
+      visible: !props.isUserOrganization,
     },
   ];
 

@@ -762,6 +762,7 @@ import endpoints.api.globalmessages
 import endpoints.api.logs
 import endpoints.api.manifest
 import endpoints.api.mirror
+import endpoints.api.namespacemirror
 import endpoints.api.namespacequota
 import endpoints.api.organization
 import endpoints.api.permission

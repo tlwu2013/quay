@@ -103,6 +103,11 @@ def org_view(o, teams):
         "is_member": is_member,
     }
 
+    if app.config.get("FEATURE_NAMESPACE_MIRROR"):
+        from data.model import namespace_mirror
+        mirror = namespace_mirror.get_namespace_mirror_config(o)
+        view["is_mirroring_enabled"] = bool(mirror and mirror.is_enabled)
+
     if teams is not None:
         teams = sorted(teams, key=lambda team: team.id)
         view["teams"] = {t.name: team_view(o.username, t) for t in teams}

@@ -25,6 +25,7 @@ export interface IOrganization {
   tag_expiration_s: number;
   email: string;
   quota_report?: IQuotaReport;
+  is_mirroring_enabled?: boolean;
 }
 
 export async function fetchOrg(orgname: string, signal: AbortSignal) {
