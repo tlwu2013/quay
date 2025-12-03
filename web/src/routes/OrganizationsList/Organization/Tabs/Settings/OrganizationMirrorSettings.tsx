@@ -61,18 +61,31 @@ export function OrganizationMirrorSettings({organizationName}: OrganizationMirro
       };
       setFormData(loadedData);
       setHasUnsavedChanges(false);
-    } else if (!config) {
-      // Load from sessionStorage if config failed to load
-      const saved = sessionStorage.getItem(`mirror-config-${organizationName}`);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          setFormData(prev => ({...prev, ...parsed}));
-        } catch (e) {
-          // Ignore invalid data
-        }
+  } else if (!config) {
+    // Load from sessionStorage if config failed to load
+    const saved = sessionStorage.getItem(`mirror-config-${organizationName}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setFormData(prev => ({...prev, ...parsed}));
+      } catch (e) {
+        // Ignore invalid data
       }
     }
+    // Ensure required fields are initialized for new organizations
+    setFormData(prev => ({
+      external_registry: prev.external_registry || '',
+      external_namespace: prev.external_namespace || '',
+      external_registry_username: prev.external_registry_username || '',
+      external_registry_password: prev.external_registry_password || '',
+      sync_interval: prev.sync_interval ?? 86400,
+      repo_filter_type: prev.repo_filter_type || 'regex',
+      repo_filter_value: prev.repo_filter_value || '',
+      internal_robot: prev.internal_robot || '',
+      is_enabled: prev.is_enabled ?? true,
+      ...prev
+    }));
+  }
   }, [config, organizationName]);
 
   // Persist form data in sessionStorage
@@ -149,7 +162,21 @@ export function OrganizationMirrorSettings({organizationName}: OrganizationMirro
   });
 
   const handleSubmit = () => {
-    updateMutation.mutate(formData);
+    // Ensure all required fields are present
+    const dataToSubmit = {
+      external_registry: formData.external_registry || '',
+      external_namespace: formData.external_namespace || '',
+      external_registry_username: formData.external_registry_username || null,
+      external_registry_password: formData.external_registry_password || null,
+      sync_interval: formData.sync_interval ?? 86400,
+      repo_filter_type: formData.repo_filter_type || 'regex',
+      repo_filter_value: formData.repo_filter_value || null,
+      internal_robot: formData.internal_robot || null,
+      is_enabled: formData.is_enabled ?? true,
+    };
+
+    console.log('Form data being submitted:', dataToSubmit);
+    updateMutation.mutate(dataToSubmit);
   };
 
   if (isLoading) return <Spinner />;
